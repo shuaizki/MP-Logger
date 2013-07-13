@@ -4,17 +4,26 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import me.shuaizki.util.TimeUtil;
 
 public class Logger {
-	private BufferedWriter bw;
-	private int Counter;
-
+	public Logger() {
+	}
+	
 	static class LogFile {
 		private static HashSet<String> log_set;
-		private static SimpleDateFormat df;
+		private BufferedWriter bw;
+		private Timer timer;
+		private String svc_name;
+		private Map<String, ArrayList<String>> content_buff;
+		
 		static {
 			log_set = new HashSet<String>();
 			File log_dir = new File("log/");
@@ -23,10 +32,32 @@ public class Logger {
 					continue;
 				log_set.add(f.getName());
 			}
-
+		}	
+		
+		public LogFile(String svc_name) {
+			content_buff = new HashMap<String, ArrayList<String>>();
+			createFile(svc_name);
+			timer = new Timer();
+			this.svc_name = svc_name;
+			TimerTask recorder = new record();
+			TimerTask refresh = new refreshLogFile();
+			
+			timer.schedule(recorder, 30000);
+			timer.schedule(refresh, TimeUtil.getNextDay(), 24 * 3600 * 1000);
+		}
+		
+		public void log(String key, String content)
+		{
+			ArrayList<String> contents = content_buff.get(key);
+			if (contents == null)
+			{
+				contents = new ArrayList<String>();
+				content_buff.put(key, contents);
+			}
+			contents.add(content);
 		}
 
-		public static String getFile(String sig) {
+		private void createFile(String sig) {
 			File log_dir = new File("log/", sig);
 			System.out.println(log_set);
 			if (!log_set.contains(sig)) {
@@ -35,44 +66,70 @@ public class Logger {
 				}
 				log_set.add(sig);
 			}
-			df = new SimpleDateFormat("yyyy_MM_dd");
-			Date date = new Date();
-			String d = df.format(date);
-			return log_dir.getAbsolutePath() + "/"+ d + ".txt"; }
-	}
+			if (bw != null)
+			{
+				try {
+					bw.flush();
+					bw.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+					System.exit(-1);
+				}
+			}
+			try {
+				bw = new BufferedWriter(new FileWriter(log_dir.getAbsolutePath() + "/"+ TimeUtil.getSimpleDate() + ".txt", true));
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(-1);
+			}
+		}
+		
+		public class refreshLogFile extends TimerTask {
 
-	public Logger(String service_type)  {
-		String service_log_name = LogFile.getFile(service_type);
-		try {
-			bw = new BufferedWriter(new FileWriter(service_log_name));
-		} catch (IOException e) {
-			throw new RuntimeException("log file " + service_log_name + " created failed");
+			@Override
+			public void run() {
+				createFile(svc_name);
+			}
+		}
+		
+		public class record extends TimerTask {
+
+			@Override
+			public void run() {
+				for (String key: content_buff.keySet())
+				{
+					ArrayList<String> contents = content_buff.get(key);
+					try {
+						bw.write("-----new log----" + TimeUtil.getTime() + '\n');
+						bw.write(key+ '\n');
+						for (String content: contents)
+						{
+							bw.write(content);
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
 		}
 	}
 	
-	public void log(Object o) {
-		String a = str(o);
-		try {
-			bw.write(a);
-			bw.flush();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+	private Map<String, LogFile> logfile_map;
 
-	public String str(Object o) {
-		return null;
+	public Logger(String service_type)  {
+		logfile_map = new HashMap<String, LogFile> ();
+	}
+	
+	public void log(String svc_name, String key, String msg)
+	{
+		LogFile logfile = logfile_map.get(svc_name);
+		if (logfile == null)
+		{
+			logfile = new LogFile(svc_name);
+		}
+		logfile.log(key, msg);
 	}
 
 	public static void main(String[] arg0) {
-		Logger tmp_logger = new Logger("tmp") {
-
-			@Override
-			public String str(Object o) {
-				String a = (String) o;
-				return a;
-			}
-		};
-		tmp_logger.log("what the....");
 	}
 }

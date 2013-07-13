@@ -5,13 +5,16 @@ import java.rmi.server.*;
 
 public class MPServer extends UnicastRemoteObject implements MPInterface {
 
+	private Logger logger;
+	
 	protected MPServer() throws RemoteException {
 		super();
-		// TODO Auto-generated constructor stub
+		logger = new Logger();
 	}
 
 	@Override
 	public void log(String service_name, String key, String msg) {
+		logger.log(service_name, key, msg);
 	}
 
 }
