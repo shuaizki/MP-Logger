@@ -10,13 +10,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
 
 import me.shuaizki.util.TimeUtil;
 
 public class Logger {
-	public Logger() {
-	}
-	
+
 	static class LogFile {
 		private static HashSet<String> log_set;
 		private BufferedWriter bw;
@@ -35,14 +34,14 @@ public class Logger {
 		}	
 		
 		public LogFile(String svc_name) {
-			content_buff = new HashMap<String, ArrayList<String>>();
+			content_buff = new ConcurrentHashMap<String, ArrayList<String>>();
 			createFile(svc_name);
 			timer = new Timer();
 			this.svc_name = svc_name;
 			TimerTask recorder = new record();
 			TimerTask refresh = new refreshLogFile();
 			
-			timer.schedule(recorder, 30000);
+			timer.schedule(recorder, 30000, 30000);
 			timer.schedule(refresh, TimeUtil.getNextDay(), 24 * 3600 * 1000);
 		}
 		
@@ -54,12 +53,11 @@ public class Logger {
 				contents = new ArrayList<String>();
 				content_buff.put(key, contents);
 			}
-			contents.add(content);
+			content_buff.get(key).add(content);
 		}
 
 		private void createFile(String sig) {
 			File log_dir = new File("log/", sig);
-			System.out.println(log_set);
 			if (!log_set.contains(sig)) {
 				if (!log_dir.mkdir()) {
 					throw new RuntimeException(sig + "'s not created");
@@ -99,6 +97,7 @@ public class Logger {
 				for (String key: content_buff.keySet())
 				{
 					ArrayList<String> contents = content_buff.get(key);
+					content_buff.put(key, new ArrayList<String>());
 					try {
 						bw.write("-----new log----" + TimeUtil.getTime() + '\n');
 						bw.write(key+ '\n');
@@ -106,17 +105,19 @@ public class Logger {
 						{
 							bw.write(content);
 						}
+						bw.flush();
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
 				}
+				content_buff.clear();
 			}
 		}
 	}
 	
 	private Map<String, LogFile> logfile_map;
 
-	public Logger(String service_type)  {
+	public Logger()  {
 		logfile_map = new HashMap<String, LogFile> ();
 	}
 	
@@ -126,6 +127,7 @@ public class Logger {
 		if (logfile == null)
 		{
 			logfile = new LogFile(svc_name);
+			logfile_map.put(svc_name, logfile);
 		}
 		logfile.log(key, msg);
 	}

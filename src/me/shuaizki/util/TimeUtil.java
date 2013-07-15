@@ -32,4 +32,10 @@ public class TimeUtil {
 		Date dd = cal.getTime();
 		return dd;
 	}
+	
+	public static void main(String[] arg0) {
+		System.out.println(getSimpleDate());
+		System.out.println(getTime());
+		System.out.println(getNextDay());
+	}
 }
